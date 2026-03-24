@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, Link } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, Link, useLocation } from 'react-router-dom'
+import CalculadoraJunior, { type VentaJunior } from './CalculadoraJunior'
 
 type Clase = 'economica' | 'ejecutiva' | 'primera'
 type Temporada = 'baja' | 'media' | 'alta'
@@ -42,23 +43,43 @@ const COMPRA_MULTIPLIER: Record<TipoCompra, number> = {
   'mismo-dia': 0.2,
 }
 
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const location = useLocation()
+  const active = location.pathname === to
+  return (
+    <Link
+      to={to}
+      className={`text-decoration-none small px-2 py-1 rounded ${
+        active ? 'bg-primary text-white' : 'text-dark'
+      }`}
+    >
+      {children}
+    </Link>
+  )
+}
+
 function App() {
+  const [ventas, setVentas] = useState<Venta[]>([])
+  const [ventasJunior, setVentasJunior] = useState<VentaJunior[]>([])
+
   return (
     <BrowserRouter>
       <div className="min-vh-100 text-dark">
         <header className="border-bottom border-primary bg-white bg-opacity-90 shadow-sm">
           <div className="container py-3 d-flex justify-content-between align-items-center">
             <div className="fw-semibold text-primary">Sistema Tarifas Tren</div>
-            <nav className="d-flex gap-3 small">
-              <Link className="text-decoration-none text-dark" to="/">Calcular</Link>
-              <Link className="text-decoration-none text-dark" to="/reporte">Reporte</Link>
+            <nav className="d-flex gap-2">
+              <NavLink to="/">Calcular boleto</NavLink>
+              <NavLink to="/junior">Boleto para niño</NavLink>
+              <NavLink to="/reporte">Reporte</NavLink>
             </nav>
           </div>
         </header>
 
         <main className="container py-4">
           <Routes>
-            <Route path="/" element={<Calculadora />} />
+            <Route path="/" element={<Calculadora ventas={ventas} setVentas={setVentas} />} />
+            <Route path="/junior" element={<CalculadoraJunior ventasJunior={ventasJunior} setVentasJunior={setVentasJunior} />} />
             <Route path="/reporte" element={<Reporte />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -88,9 +109,9 @@ const initialForm: FormState = {
   tipoCompra: 'anticipada',
 }
 
-function Calculadora() {
+function Calculadora(props: { ventas: Venta[], setVentas: (v: Venta[]) => void }) {
+  const { ventas, setVentas } = props
   const [form, setForm] = useState<FormState>(initialForm)
-  const [ventas, setVentas] = useState<Venta[]>([])
   const [detalleActual, setDetalleActual] = useState<string[]>([])
   const [totalActual, setTotalActual] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -98,10 +119,11 @@ function Calculadora() {
   const trenCompleto = ventas.length >= 120
 
   const handleChange = (key: keyof FormState, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: key === 'nombre' ? value : value }))
+    setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  const parseNumber = (val: number | '') => (val === '' || Number.isNaN(Number(val)) ? null : Number(val))
+  const parseNumber = (val: number | '') =>
+    val === '' || Number.isNaN(Number(val)) ? null : Number(val)
 
   const calcular = () => {
     setError(null)
@@ -134,11 +156,11 @@ function Calculadora() {
     const base = distanciaNum * TARIFA_KM
     detalle.push(`Base por distancia (${distanciaNum} km × $${TARIFA_KM.toFixed(2)}) = $${base.toFixed(2)}`)
 
-    const claseAdj = base * CLASE_MULTIPLIER[form.clase]
-    detalle.push(`Clase (${labelClase(form.clase)}) ${formatPct(CLASE_MULTIPLIER[form.clase])} = $${claseAdj.toFixed(2)}`)
+    const claseAdj = base * CLASE_MULTIPLIER[form.clase as Clase]
+    detalle.push(`Clase (${labelClase(form.clase as Clase)}) ${formatPct(CLASE_MULTIPLIER[form.clase as Clase])} = $${claseAdj.toFixed(2)}`)
 
-    const temporadaAdj = base * TEMPORADA_MULTIPLIER[form.temporada]
-    detalle.push(`Temporada (${labelTemporada(form.temporada)}) ${formatPct(TEMPORADA_MULTIPLIER[form.temporada])} = $${temporadaAdj.toFixed(2)}`)
+    const temporadaAdj = base * TEMPORADA_MULTIPLIER[form.temporada as Temporada]
+    detalle.push(`Temporada (${labelTemporada(form.temporada as Temporada)}) ${formatPct(TEMPORADA_MULTIPLIER[form.temporada as Temporada])} = $${temporadaAdj.toFixed(2)}`)
 
     const edadAdj = base * EDAD_DISCOUNT(edadNum)
     detalle.push(`Edad (${edadNum} años) ${formatPct(EDAD_DISCOUNT(edadNum))} = $${edadAdj.toFixed(2)}`)
@@ -146,8 +168,8 @@ function Calculadora() {
     const equipajeAdj = equipajeNum * 6
     detalle.push(`Equipaje extra (${equipajeNum} maletas × $6) = $${equipajeAdj.toFixed(2)}`)
 
-    const compraAdj = base * COMPRA_MULTIPLIER[form.tipoCompra]
-    detalle.push(`Tipo de compra (${labelCompra(form.tipoCompra)}) ${formatPct(COMPRA_MULTIPLIER[form.tipoCompra])} = $${compraAdj.toFixed(2)}`)
+    const compraAdj = base * COMPRA_MULTIPLIER[form.tipoCompra as TipoCompra]
+    detalle.push(`Tipo de compra (${labelCompra(form.tipoCompra as TipoCompra)}) ${formatPct(COMPRA_MULTIPLIER[form.tipoCompra as TipoCompra])} = $${compraAdj.toFixed(2)}`)
 
     const ocupacion = Math.floor(50 + Math.random() * 50)
     let ocupacionAdj = 0
@@ -160,7 +182,7 @@ function Calculadora() {
 
     const subtotal = base + claseAdj + temporadaAdj + edadAdj + compraAdj + equipajeAdj + ocupacionAdj
     const total = Math.max(0, subtotal)
-    const clasificacion =
+    const clasificacion: Venta['clasificacion'] =
       total > 150 ? 'Premium' : total >= 70 ? 'Regular' : 'Económico'
 
     const nuevaVenta: Venta = {
@@ -168,10 +190,10 @@ function Calculadora() {
       nombre: form.nombre.trim(),
       edad: edadNum,
       distancia: distanciaNum,
-      clase: form.clase,
-      temporada: form.temporada,
+      clase: form.clase as Clase,
+      temporada: form.temporada as Temporada,
       equipajeExtra: equipajeNum,
-      tipoCompra: form.tipoCompra,
+      tipoCompra: form.tipoCompra as TipoCompra,
       ocupacion,
       subtotal,
       total,
@@ -179,7 +201,7 @@ function Calculadora() {
       clasificacion,
     }
 
-    setVentas((prev) => [...prev, nuevaVenta])
+    setVentas([...ventas, nuevaVenta])
     setDetalleActual(detalle)
     setTotalActual(total)
   }
@@ -373,16 +395,8 @@ function useStats(ventas: Venta[]) {
     const totalVendido = ventas.reduce((acc, v) => acc + v.total, 0)
     const promedio = totalVendido / ventas.length
 
-    const conteoClases: Record<Clase, number> = {
-      economica: 0,
-      ejecutiva: 0,
-      primera: 0,
-    }
-    const ingresoPorTemporada: Record<Temporada, number> = {
-      baja: 0,
-      media: 0,
-      alta: 0,
-    }
+    const conteoClases: Record<Clase, number> = { economica: 0, ejecutiva: 0, primera: 0 }
+    const ingresoPorTemporada: Record<Temporada, number> = { baja: 0, media: 0, alta: 0 }
 
     let pasajerosDescuentoEdad = 0
     let pasajerosAltaDemanda = 0
