@@ -68,6 +68,13 @@ function App() {
   )
 }
 
+type FormErrors = {
+  nombre?: string
+  edad?: string
+  distancia?: string
+  equipajeExtra?: string
+}
+
 type FormState = {
   nombre: string
   edad: number | ''
@@ -76,6 +83,43 @@ type FormState = {
   temporada: Temporada
   equipajeExtra: number | ''
   tipoCompra: TipoCompra
+}
+
+const validateField = (
+  name: keyof FormState,
+  value: string | number | ''
+): string | undefined => {
+  if (name === 'nombre') {
+    const strVal = value as string
+    if (!strVal.trim()) return 'El nombre es obligatorio'
+    if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(strVal.trim())) {
+      return 'Solo se permiten letras y espacios'
+    }
+    if (strVal.trim().length < 2) return 'Mínimo 2 caracteres'
+    if (strVal.trim().length > 50) return 'Máximo 50 caracteres'
+  }
+  if (name === 'edad') {
+    const numVal = value === '' ? null : Number(value)
+    if (numVal === null) return 'La edad es obligatoria'
+    if (numVal < 0) return 'La edad no puede ser negativa'
+    if (numVal > 150) return 'La edad máxima es 150 años'
+    if (!Number.isInteger(numVal)) return 'La edad debe ser un número entero'
+  }
+  if (name === 'distancia') {
+    const numVal = value === '' ? null : Number(value)
+    if (numVal === null) return 'La distancia es obligatoria'
+    if (numVal < 20) return 'La distancia mínima es 20 km'
+    if (numVal > 5000) return 'La distancia máxima es 5000 km'
+    if (!Number.isInteger(numVal)) return 'La distancia debe ser un número entero'
+  }
+  if (name === 'equipajeExtra') {
+    const numVal = value === '' ? null : Number(value)
+    if (numVal === null) return 'El equipaje extra es obligatorio'
+    if (numVal < 0) return 'No puede ser negativo'
+    if (numVal > 10) return 'Máximo 10 maletas adicionales'
+    if (!Number.isInteger(numVal)) return 'Debe ser un número entero'
+  }
+  return undefined
 }
 
 const initialForm: FormState = {
@@ -90,6 +134,7 @@ const initialForm: FormState = {
 
 function Calculadora() {
   const [form, setForm] = useState<FormState>(initialForm)
+  const [errors, setErrors] = useState<FormErrors>({})
   const [ventas, setVentas] = useState<Venta[]>([])
   const [detalleActual, setDetalleActual] = useState<string[]>([])
   const [totalActual, setTotalActual] = useState<number | null>(null)
@@ -101,34 +146,41 @@ function Calculadora() {
     setForm((prev) => ({ ...prev, [key]: key === 'nombre' ? value : value }))
   }
 
-  const parseNumber = (val: number | '') => (val === '' || Number.isNaN(Number(val)) ? null : Number(val))
+  const handleBlur = (key: keyof FormState) => {
+    const value = form[key]
+    const fieldError = validateField(key, value)
+    setErrors((prev) => ({ ...prev, [key]: fieldError }))
+  }
 
   const calcular = () => {
     setError(null)
-    const distanciaNum = parseNumber(form.distancia)
-    const edadNum = parseNumber(form.edad)
-    const equipajeNum = parseNumber(form.equipajeExtra)
-
+    const newErrors: FormErrors = {}
+    
+    const nombreError = validateField('nombre', form.nombre)
+    const edadError = validateField('edad', form.edad)
+    const distanciaError = validateField('distancia', form.distancia)
+    const equipajeError = validateField('equipajeExtra', form.equipajeExtra)
+    
+    if (nombreError) newErrors.nombre = nombreError
+    if (edadError) newErrors.edad = edadError
+    if (distanciaError) newErrors.distancia = distanciaError
+    if (equipajeError) newErrors.equipajeExtra = equipajeError
+    
+    setErrors(newErrors)
+    
+    if (Object.keys(newErrors).length > 0) {
+      setError('Por favor, corrige los errores en el formulario')
+      return
+    }
+    
     if (trenCompleto) {
       setError('Tren Completo: máximo 120 pasajeros por día')
       return
     }
-    if (!form.nombre.trim()) {
-      setError('El nombre no puede estar vacío')
-      return
-    }
-    if (edadNum === null || edadNum < 0) {
-      setError('La edad no puede ser negativa ni vacía')
-      return
-    }
-    if (distanciaNum === null || distanciaNum < 20) {
-      setError('Distancia mínima: 20 km')
-      return
-    }
-    if (equipajeNum === null || equipajeNum < 0) {
-      setError('El equipaje extra no puede ser negativo')
-      return
-    }
+
+    const distanciaNum = Number(form.distancia)
+    const edadNum = Number(form.edad)
+    const equipajeNum = Number(form.equipajeExtra)
 
     const detalle: string[] = []
     const base = distanciaNum * TARIFA_KM
@@ -206,31 +258,37 @@ function Calculadora() {
               <div className="col-12">
                 <label className="form-label">Nombre</label>
                 <input
-                  className="form-control bg-white text-dark border-secondary"
+                  className={`form-control bg-white text-dark border-secondary ${errors.nombre ? 'is-invalid' : ''}`}
                   value={form.nombre}
                   onChange={(e) => handleChange('nombre', e.target.value)}
+                  onBlur={() => handleBlur('nombre')}
                   placeholder="Nombre del pasajero"
                 />
+                {errors.nombre && <div className="invalid-feedback">{errors.nombre}</div>}
               </div>
               <div className="col-6">
                 <label className="form-label">Edad</label>
                 <input
                   type="number"
-                  className="form-control bg-white text-dark border-secondary"
+                  className={`form-control bg-white text-dark border-secondary ${errors.edad ? 'is-invalid' : ''}`}
                   value={form.edad}
                   onChange={(e) => handleChange('edad', e.target.value)}
+                  onBlur={() => handleBlur('edad')}
                   min={0}
                 />
+                {errors.edad && <div className="invalid-feedback">{errors.edad}</div>}
               </div>
               <div className="col-6">
                 <label className="form-label">Distancia (km)</label>
                 <input
                   type="number"
-                  className="form-control bg-white text-dark border-secondary"
+                  className={`form-control bg-white text-dark border-secondary ${errors.distancia ? 'is-invalid' : ''}`}
                   value={form.distancia}
                   onChange={(e) => handleChange('distancia', e.target.value)}
+                  onBlur={() => handleBlur('distancia')}
                   min={20}
                 />
+                {errors.distancia && <div className="invalid-feedback">{errors.distancia}</div>}
               </div>
               <div className="col-6">
                 <label className="form-label">Clase</label>
@@ -260,11 +318,13 @@ function Calculadora() {
                 <label className="form-label">Equipaje extra (maletas)</label>
                 <input
                   type="number"
-                  className="form-control bg-white text-dark border-secondary"
+                  className={`form-control bg-white text-dark border-secondary ${errors.equipajeExtra ? 'is-invalid' : ''}`}
                   value={form.equipajeExtra}
                   onChange={(e) => handleChange('equipajeExtra', e.target.value)}
+                  onBlur={() => handleBlur('equipajeExtra')}
                   min={0}
                 />
+                {errors.equipajeExtra && <div className="invalid-feedback">{errors.equipajeExtra}</div>}
               </div>
               <div className="col-6">
                 <label className="form-label">Tipo de compra</label>
